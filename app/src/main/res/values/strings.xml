@@ -2,4 +2,6 @@
     <string name="app_name">BLE Scanner</string>
     <string name="permission_group_location">Location</string>
     <string name="mesin_nyala">Mesin nyala</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>
