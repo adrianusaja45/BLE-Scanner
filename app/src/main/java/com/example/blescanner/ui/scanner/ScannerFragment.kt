@@ -14,7 +14,6 @@ class ScannerFragment : Fragment() {
     // ViewBinding boilerplate untuk Fragment
     private var _binding: FragmentScannerBinding? = null
     private val binding get() = _binding!!
-    private var param2: String? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,

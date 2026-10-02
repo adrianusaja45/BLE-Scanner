@@ -13,18 +13,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 
-//wadah sementara data di map agar mudah menemukan dan memperbarui data berdasarkan MAC Address
-private val scannedDevicesMap = mutableMapOf<String, ScannedDevice>()
-
-//Pipa aliran data (Flow) internal yang bisa diubah
-private val _scannedDevicesFlow = MutableStateFlow<List<ScannedDevice>>(emptyList())
-
-//pipa aliran data (Flow) eksternal yang hanya bisa dibaca yang dipantau oleh ViewModel
-val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevicesFlow.asStateFlow()
-
 class BleScannerRepo @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
+    //wadah sementara data di map agar mudah menemukan dan memperbarui data berdasarkan MAC Address
+    private val scannedDevicesMap = mutableMapOf<String, ScannedDevice>()
+
+    //Pipa aliran data (Flow) internal yang bisa diubah
+    private val _scannedDevicesFlow = MutableStateFlow<List<ScannedDevice>>(emptyList())
+
+    //pipa aliran data (Flow) eksternal yang hanya bisa dibaca yang dipantau oleh ViewModel
+    val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevicesFlow.asStateFlow()
+
     //mengambil layanan bluetooth sistem android
     private val bluetoothManager =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
