@@ -10,6 +10,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.blescanner.databinding.FragmentScannerBinding
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -22,6 +23,7 @@ class ScannerFragment : Fragment() {
 
     //Hilt otomatis mencarikaan dan menyuntikkan ScannerViewModel ke sini
     private val viewModel: ScannerViewModel by viewModels()
+    private lateinit var devicesAdapter: DeviceAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -38,7 +40,14 @@ class ScannerFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         // untuk manipulasi UI
+
+        // 1. Siapkan Adapter dan pasang ke RecyclerView
+        setupRecyclerView()
+
+        // 2. Nyalakan pemantau data dari ViewModel
         observeViewModel()
+
+        // 3. Mulai pemindaian BLE
         viewModel.startScan()
 
     }
@@ -47,6 +56,14 @@ class ScannerFragment : Fragment() {
         super.onDestroyView()
         //untuk menghindari memory leak
         _binding = null
+    }
+
+    private fun setupRecyclerView() {
+        devicesAdapter = DeviceAdapter()
+        binding.rvDevices.apply {
+            adapter = devicesAdapter
+            layoutManager = LinearLayoutManager(requireContext())
+        }
     }
 
     //untuk mengobservasi LiveData dari ViewModel
@@ -62,6 +79,9 @@ class ScannerFragment : Fragment() {
                     // Setiap kali ada perangkat baru, blok ini akan otomatis tereksekusi
                     // Untuk sementara, kita ubah teks di layar sesuai jumlah perangkat
                     binding.tvStatus.text = "Menemukan ${devices.size} perangkat"
+
+                    //Kirim Data ke Adapter
+                    devicesAdapter.submitList(devices)
 
                     // Cetak perangkat terkuat ke Logcat (jika daftar tidak kosong)
                     if (devices.isNotEmpty()) {
