@@ -25,6 +25,8 @@ class ScannerFragment : Fragment() {
     private val viewModel: ScannerViewModel by viewModels()
     private lateinit var devicesAdapter: DeviceAdapter
 
+    private var isScanning = false
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -47,8 +49,22 @@ class ScannerFragment : Fragment() {
         // 2. Nyalakan pemantau data dari ViewModel
         observeViewModel()
 
-        // 3. Mulai pemindaian BLE
-        viewModel.startScan()
+        // 3. Mulai/Stop pemindaian BLE
+        binding.btnStartStop.setOnClickListener {
+            if (isScanning) {
+                //Jika sedang scan, hentikan
+                viewModel.stopScan()
+                binding.btnStartStop.text = "Start Scan"
+                binding.tvStatus.text = "Scan Dihentikan"
+                isScanning = false
+            } else {
+                // Jika sedang berhenti, jalankan scan
+                viewModel.startScan()
+                binding.btnStartStop.text = "Stop Scan"
+                binding.tvStatus.text = "Memindai Perangkat .."
+                isScanning = true
+            }
+        }
 
     }
 
