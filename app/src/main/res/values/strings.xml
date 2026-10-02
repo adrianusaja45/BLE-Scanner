@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">BLE Scanner</string>
+    <string name="permission_group_location">Location</string>
+</resources>
