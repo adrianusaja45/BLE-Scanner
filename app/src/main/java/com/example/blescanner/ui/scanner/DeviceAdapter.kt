@@ -16,7 +16,18 @@ class DeviceAdapter : ListAdapter<ScannedDevice, DeviceAdapter.DeviceViewHolder>
         fun bind(device: ScannedDevice) {
             binding.tvDeviceName.text = device.name.ifBlank { "Unknown Device" }
             binding.tvMacAddress.text = device.mac
-            binding.tvRssi.text = device.rssi.toString()
+            binding.tvRssi.text = "${device.rssi} dBm"
+
+            //konversi RSSI ke estimasi jarak
+            val distanceEstimation = when(device.rssi){
+                in -30..0 -> "<1 m (Sangat Kuat)"
+                in -50..-31 -> "1-3 m (Kuat)"
+                in -70..-51 -> "3-10 m (Cukup)"
+                in -80..-71 -> "10-20 m (Lemah)"
+                in -90..-81 -> "> 20 m (Sangat Lemah)"
+                else -> "Di luar jangkauan (Lost)"
+            }
+            binding.tvDistance.text = distanceEstimation
         }
     }
     // 2. Membuat kotak kartu baru saat dibutuhkan oleh RecyclerView

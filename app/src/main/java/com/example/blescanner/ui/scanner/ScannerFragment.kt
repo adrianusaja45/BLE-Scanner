@@ -1,6 +1,8 @@
 package com.example.blescanner.ui.scanner
 
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -42,6 +44,24 @@ class ScannerFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         // untuk manipulasi UI
+        //Listener SearchBar
+        binding.etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: Editable?) {
+                viewModel.setSearchQuery(s.toString())
+            }
+        })
+
+        //Listener Slider RSSI
+        binding.sliderRssi.addOnChangeListener { _, value, _ ->
+            val minRssi = value.toInt()
+
+            binding.tvRssiFilterLabel.text = "Batas Min RSSI: $minRssi dBm"
+
+            viewModel.setMinRssiFilter(minRssi)
+        }
 
         // 1. Siapkan Adapter dan pasang ke RecyclerView
         setupRecyclerView()
