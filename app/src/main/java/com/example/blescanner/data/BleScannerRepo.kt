@@ -116,6 +116,12 @@ class BleScannerRepo @Inject constructor(
      * SecurityException saat izin kurang - keduanya akan menutup aplikasi kalau
      * tidak diceg lebih dulu. Karena itu prasyarat dicek eksplisit dan hasilnya
      * dikembalikan ke UI sebagai penjelasan.
+     *
+     * URUTAN PEMERIKSAAN PENTING. BluetoothAdapter.getBluetoothLeScanner()
+     * mengembalikan null ketika LE sedang nonaktif, bukan hanya ketika LE tidak
+     * didukung hardware. Jadi isEnabled() harus dicek lebih dulu; kalau tidak,
+     * BT yang dimatikan akan dilaporkan sebagai "tidak mendukung LE" dan
+     * pemeriksaan isEnabled() tidak pernah tereksekusi.
      */
     // ReturnCount dilewati secara sengaja: pola guard clause di sini justru
     // yang membuat urutan pemeriksaan prasyarat terbaca jelas. Menyatukannya
@@ -123,8 +129,7 @@ class BleScannerRepo @Inject constructor(
     @Suppress("ReturnCount")
     fun startScan(): ScanLaunchResult {
         val adapter = bluetoothAdapter
-        val scanner = adapter?.bluetoothLeScanner
-        if (adapter == null || scanner == null) {
+        if (adapter == null) {
             Log.w(TAG, "Adapter Bluetooth tidak tersedia di perangkat ini")
             return ScanLaunchResult.BluetoothUnavailable
         }
@@ -134,9 +139,19 @@ class BleScannerRepo @Inject constructor(
             return ScanLaunchResult.PermissionDenied
         }
 
+        // WAJIB dicek sebelum getBluetoothLeScanner(): AOSP mengembalikan null dari
+        // getBluetoothLeScanner() ketika LE sedang nonaktif, bukan hanya saat
+        // hardwarenya tidak ada. Kalau urutannya dibalik, BT mati akan terbaca
+        // sebagai "perangkat tidak mendukung LE" dan pesan yang tampil menyesatkan.
         if (!adapter.isEnabled) {
             Log.w(TAG, "Bluetooth sedang nonaktif, scan dibatalkan")
             return ScanLaunchResult.BluetoothDisabled
+        }
+
+        val scanner = adapter.bluetoothLeScanner
+        if (scanner == null) {
+            Log.w(TAG, "Bluetooth LE tidak tersedia di perangkat ini")
+            return ScanLaunchResult.BluetoothUnavailable
         }
 
         if (!BlePermissions.isLocationServiceEnabled(context)) {
