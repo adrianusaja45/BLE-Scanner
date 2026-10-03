@@ -17,6 +17,7 @@ sering jadi sumber bug di aplikasi BLE: **error handling**, **manajemen siklus h
 
 ## Daftar Isi
 
+- [Download APK](#download-apk)
 - [Fitur](#fitur)
 - [Cara Menjalankan](#cara-menjalankan)
 - [Arsitektur](#arsitektur)
@@ -25,6 +26,26 @@ sering jadi sumber bug di aplikasi BLE: **error handling**, **manajemen siklus h
 - [Pernyataan Penggunaan AI](#pernyataan penggunaan-ai)
 - [Known Issues](#known-issues)
 - [Asumsi Teknis & Kendala](#asumsi-teknis--kendala)
+
+---
+
+## Download APK
+
+APK build **release** yang sudah ditandatangani tersedia di halaman
+[**Releases**](https://github.com/adrianusaja45/BLE-Scanner/releases).
+
+| | |
+|---|---|
+| Format | `.apk` (signed, siap install) |
+| Ukuran | ± 2,6 MB |
+| Min. Android | 7.0 (API 24) |
+| Target | Android 16 (API 37) |
+
+**Cara memasang:** unduh APK-nya, transfer ke HP, lalu buka dari File Manager dan izinkan
+*"Install unknown apps"* bila diminta.
+
+> **Harus memakai HP asli.** Emulator tidak punya hardware Bluetooth LE, sehingga
+> pemindaian tidak akan menemukan perangkat apa pun.
 
 ---
 
@@ -70,6 +91,21 @@ cd BLE-Scanner
 ./gradlew installDebug      # build + pasang ke perangkat
 ./gradlew check             # jalankan static analysis (detekt)
 ```
+
+### Build Release Bertanda Tangan
+
+```bash
+./gradlew clean assembleRelease
+# hasil: app/build/outputs/apk/release/app-release.apk
+```
+
+Release build memakai R8 untuk mengecilkan ukuran APK dan menambahkan tanda tangan.
+Kredensialnya **tidak** disimpan di dalam repository — dibaca dari
+`keystore.properties` yang sudah masuk `.gitignore`.
+
+Tanpa file tersebut, build **tetap berhasil** dan hanya menghasilkan APK unsigned.
+Ini disengaja: orang lain yang meng-clone repository ini tetap bisa membangunnya tanpa
+perlu memiliki keystore.
 
 ---
 

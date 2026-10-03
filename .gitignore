@@ -13,3 +13,14 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Kredensial release build. File-file ini TIDAK BOLEH masuk repository:
+# keystore yang bocor berarti siapa pun bisa mensigned update atas nama
+# aplikasi ini, dan password-nya tersimpan sebagai plaintext.
+*.jks
+*.keystore
+keystore.properties
+
+# APK hasil build. Binari tidak disimpan di dalam repository, melainkan diunggah
+# ke GitHub Releases lewat antarmuka web.
+/dist
