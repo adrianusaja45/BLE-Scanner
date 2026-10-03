@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.Flow
 interface DeviceDao {
 
     //1. Menyimpan atau memperbarui data perangkat
-    // Jika MAC Address sudah ada di database, REPLACE akan otomatis menimpa data lama dengan data baru (timestamp terbaru).
+    // Jika MAC Address sudah ada di database, REPLACE akan otomatis menimpa
+    // data lama dengan data baru (timestamp terbaru).
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDevice(device: DeviceEntity)
 

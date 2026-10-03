@@ -16,6 +16,27 @@ class RadarView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
+    private companion object {
+        // Radius terluar memakai 90% dari setengah sisi terkecil supaya lingkaran
+        // tidak menempel tepi view.
+        const val MAX_RADIUS_RATIO = 0.9f
+
+        // Lingkaran dalam dan tengah membagi radius menjadi tiga bagian sama besar.
+        const val INNER_RING_RATIO = MAX_RADIUS_RATIO / 3f
+        const val MIDDLE_RING_RATIO = INNER_RING_RATIO * 2f
+
+        // Radius titik perangkat, dalam piksel.
+        const val DOT_RADIUS_PX = 15f
+
+        // Jarak teks nama dari titik perangkat, dalam piksel.
+        const val LABEL_OFFSET_PX = 20f
+
+        // RSSI terlemah dipetakan ke tepi luar, terkuat ke titik tengah.
+        // Selisih keduanya menjadi rentang normalisasi sinyal.
+        const val RSSI_FLOOR = -100
+        const val RSSI_RANGE = 70f
+    }
+
     private var devices: List<ScannedDevice> = emptyList()
 
     // Simpan sudut (angle) untuk setiap MAC agar posisi dot tidak loncat-loncat saat RSSI update
@@ -57,26 +78,24 @@ class RadarView @JvmOverloads constructor(
 
         val centerX = width / 2f
         val centerY = height / 2f
-        val maxRadius = (Math.min(width, height) / 2f) * 0.9f // 90% dari setengah ukuran terkecil
+        val maxRadius = (Math.min(width, height) / 2f) * MAX_RADIUS_RATIO
 
-    // Gambar lingkaran radar 3 Lapis
-
-        canvas.drawCircle(centerX, centerY,  maxRadius * 0.33f, radarPaint)
-        canvas.drawCircle(centerX, centerY, maxRadius * 0.66f, radarPaint)
+        // Gambar lingkaran radar 3 Lapis
+        canvas.drawCircle(centerX, centerY, maxRadius * INNER_RING_RATIO, radarPaint)
+        canvas.drawCircle(centerX, centerY, maxRadius * MIDDLE_RING_RATIO, radarPaint)
         canvas.drawCircle(centerX, centerY, maxRadius, radarPaint)
 
         // Gambar garis silang radar
-        canvas.drawLine(centerX,0f,centerX,height.toFloat(),radarPaint)
-        canvas.drawLine(0f,centerY,width.toFloat(),centerY,radarPaint)
+        canvas.drawLine(centerX, 0f, centerX, height.toFloat(), radarPaint)
+        canvas.drawLine(0f, centerY, width.toFloat(), centerY, radarPaint)
 
         //Plot setiap perangkat
         for (device in devices) {
             val angle = deviceAngles[device.mac] ?: continue
 
             // Konversi RSSI ke jarak (Semakin mendekati 0 = semakin dekat ke center)
-            // Asumsi RSSI terlemah -100 (pinggir), terkuat -30 (tengah)
-
-            var normalizedRssi = (device.rssi + 100) / 70f // Range 0.0 (jauh) ke 1.0 (dekat)
+            // RSSI terlemah ke tepi luar, terkuat ke titik tengah.
+            var normalizedRssi = (device.rssi - RSSI_FLOOR) / RSSI_RANGE
             if (normalizedRssi < 0f) normalizedRssi = 0f
             if (normalizedRssi > 1f) normalizedRssi = 1f
 
@@ -90,14 +109,12 @@ class RadarView @JvmOverloads constructor(
             //ambil warna dinamis dari helper berdasarkan nilai RSSI
             dotPaint.color = RssiConverter.getSignalColor(device.rssi)
 
-        // Gambar titik perangkat
-            canvas.drawCircle(x, y, 15f, dotPaint)
+            // Gambar titik perangkat
+            canvas.drawCircle(x, y, DOT_RADIUS_PX, dotPaint)
 
             //Tulis nama perangkat/MAC di sekitar titik
-            val displayNAme =device.name.ifBlank { "Unknown" }
-            canvas.drawText(displayNAme, x + 20f, y, textPaint)
+            val displayName = device.name.ifBlank { "Unknown" }
+            canvas.drawText(displayName, x + LABEL_OFFSET_PX, y, textPaint)
         }
-
     }
 }
-

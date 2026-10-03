@@ -19,7 +19,8 @@ class HistoryViewModel @Inject constructor(
     val historyList = deviceDao.getAllHistory()
         .stateIn(
             scope = viewModelScope, // Terikat dengan siklus hidup ViewModel
-            started = SharingStarted.WhileSubscribed(5000), // Hemat baterai: Berhenti pantau database jika layar ditutup selama 5 detik
+            started = SharingStarted.WhileSubscribed(5000), // Hemat baterai: berhenti pantau
+            // database 5 detik setelah layar ditutup
             initialValue = emptyList() // Nilai awal sebelum data dari database selesai dimuat
         )
 

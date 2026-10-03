@@ -52,8 +52,10 @@ class ScannerFragment : Fragment() {
         // untuk manipulasi UI
         //Listener SearchBar
         binding.etSearch.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            // Dua method di bawah wajib ada karena TextWatcher adalah interface,
+            // tapi kita hanya butuh reacts afterTextChanged.
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
 
             override fun afterTextChanged(s: Editable?) {
                 viewModel.setSearchQuery(s.toString())
