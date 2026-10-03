@@ -17,5 +17,7 @@
     <string name="distance_format_with_category">%1$s (%2$s)</string>
     <string name="timeStamp">03 Okt 2026, 12:00</string>
     <string name="hapusRiwayat">Hapus Riwayat</string>
+    <string name="history">History</string>
+    <string name="scanner">Scanner</string>
 
 </resources>

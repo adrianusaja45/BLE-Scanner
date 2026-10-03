@@ -11,7 +11,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.blescanner.R
+import com.example.blescanner.ui.history.HistoryFragment
 import com.example.blescanner.ui.scanner.ScannerFragment
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -43,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0)
             insets
         }
 
@@ -55,10 +57,35 @@ class MainActivity : AppCompatActivity() {
                 .commit()
         }
 
+        //Pengecekan untuk mencegah penumpukan fragment saat user pindah - pindah halaman
+        if (savedInstanceState == null) {
+            // Initial setup
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, ScannerFragment())
+                .commit()
+        }
+
+        //Logika Navigasi
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+
+        bottomNav.setOnItemSelectedListener { item ->
+            val  selectedFragment = when (item.itemId) {
+                R.id.nav_scanner -> ScannerFragment()
+                R.id.nav_history -> HistoryFragment()
+                else -> return@setOnItemSelectedListener false
+            }
+
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, selectedFragment)
+                .commit()
+            true
+        }
+
         checkAndRequestPermissions()
 
-
     }
+
+
 
     // FUNGSI 1: Hanya bertugas mengecek, tidak melakukan apa-apa selain menjawab True/False
     private fun hasRequiredPermissions(): Boolean {
