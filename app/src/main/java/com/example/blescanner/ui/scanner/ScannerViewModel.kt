@@ -32,6 +32,11 @@ class ScannerViewModel @Inject constructor(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
+    // Berniat melanjutkan scan otomatis saat aplikasi kembali ke foreground.
+    // Sengaja mutable var, bukan StateFlow: ini state internal, tidak ada UI
+    // yang perlu mengamatinya.
+    private var resumeScanWhenForegrounded = false
+
     // Menggabungkan 3 aliran data secara reaktif
     val scannedDevice: StateFlow<List<ScannedDevice>> = combine(
         bleScannerRepo.scannedDevices,
@@ -75,6 +80,38 @@ class ScannerViewModel @Inject constructor(
     fun stopScan() {
         bleScannerRepo.stopScan()
         _isScanning.value = false
+    }
+
+    /**
+     * Dipanggil dari Activity.onStop() saat aplikasi benar-benar masuk background.
+     *
+     * Adapter BLE yang aktif di background adalah sumber borosnya baterai, jadi scan
+     * harus dihentikan. Menyimpan niatnya dulu supaya onAppForegrounded() bisa
+     * melanjutkan otomatis tanpa user menekan tombol lagi.
+     */
+    fun onAppBackgrounded() {
+        if (!_isScanning.value) return
+
+        resumeScanWhenForegrounded = true
+        bleScannerRepo.stopScan()
+        _isScanning.value = false
+    }
+
+    /**
+     * Dipanggil dari Activity.onStart() saat aplikasi kembali ke foreground.
+     *
+     * Sengaja memakai startScan() biasa supaya semua prasyarat dicek ulang:
+     * kalau Bluetooth dimatikan atau izin dicabut selama aplikasi di background,
+     * hasilnya dikembalikan agar UI bisa memberi tahu, dan niatnya dikosongkan
+     * supaya tidak mencoba lagi di setiap kali foreground berikutnya.
+     */
+    fun onAppForegrounded(): ScanLaunchResult? {
+        if (!resumeScanWhenForegrounded) return null
+
+        resumeScanWhenForegrounded = false
+        val result = bleScannerRepo.startScan()
+        _isScanning.value = result == ScanLaunchResult.Started
+        return result
     }
 
     fun setSearchQuery(query: String) {

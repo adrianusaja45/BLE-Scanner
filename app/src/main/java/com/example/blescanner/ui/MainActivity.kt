@@ -4,18 +4,24 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.blescanner.R
 import com.example.blescanner.ui.history.HistoryFragment
 import com.example.blescanner.ui.scanner.ScannerFragment
+import com.example.blescanner.ui.scanner.ScannerViewModel
 import com.example.blescanner.util.BlePermissions
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
+    // Instance yang sama dengan ScannerFragment/RadarFragment karena semuanya
+    // activity-scoped. Dipakai untuk menghentikan scan saat aplikasi background.
+    private val viewModel: ScannerViewModel by viewModels()
 
     //Permission Request
     private val permissionLauncher =
@@ -73,6 +79,25 @@ class MainActivity : AppCompatActivity() {
 
         checkAndRequestPermissions()
 
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Lanjutkan scan yang tertahan saat aplikasi masuk background.
+        // by viewModels() pada Activity memakai ViewModelStore activity yang sama
+        // dengan activityViewModels() di Fragment, jadi ini instance yang sama.
+        viewModel.onAppForegrounded()
+    }
+
+    override fun onStop() {
+        super.onStop()
+
+        // Rotasi, ganti tema, dan ganti bahasa juga memicu onStop(), tapi activity
+        // sedang direkonstruksi - bukan benar-benar background. Kalau scan dihentikan
+        // di sana, setiap rotasi akan mematikan scan dan user harus menekan ulang.
+        if (isChangingConfigurations) return
+
+        viewModel.onAppBackgrounded()
     }
 
 
