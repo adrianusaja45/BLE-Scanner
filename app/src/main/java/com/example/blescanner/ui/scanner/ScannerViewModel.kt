@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.blescanner.data.BleScannerRepo
 import com.example.blescanner.data.ScanLaunchResult
+import com.example.blescanner.model.BluetoothStatus
 import com.example.blescanner.model.ScannedDevice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,21 @@ class ScannerViewModel @Inject constructor(
     // Sengaja mutable var, bukan StateFlow: ini state internal, tidak ada UI
     // yang perlu mengamatinya.
     private var resumeScanWhenForegrounded = false
+
+    // Status adapter Bluetooth terakhir yang diketahui aplikasi.
+    // Diinisialisasi dari kondisi sebenarnya, bukan dari asumsi, supaya UI tidak
+    // sempat menampilkan "aktif" padahal Bluetooth sedang mati.
+    private val _bluetoothStatus = MutableStateFlow(
+        if (bleScannerRepo.isBluetoothEnabled()) {
+            BluetoothStatus.ENABLED
+        } else {
+            BluetoothStatus.DISABLED
+        }
+    )
+    val bluetoothStatus: StateFlow<BluetoothStatus> = _bluetoothStatus.asStateFlow()
+
+    // Berniat melanjutkan scan otomatis saat Bluetooth dinyalakan kembali.
+    private var resumeScanWhenBluetoothReenabled = false
 
     // Menggabungkan 3 aliran data secara reaktif
     val scannedDevice: StateFlow<List<ScannedDevice>> = combine(
@@ -112,6 +128,43 @@ class ScannerViewModel @Inject constructor(
         val result = bleScannerRepo.startScan()
         _isScanning.value = result == ScanLaunchResult.Started
         return result
+    }
+
+    /**
+     * Dipanggil dari BroadcastReceiver saat Android memberi tahu status Bluetooth berubah.
+     *
+     * Yang dilakukan di sini:
+     * - DISABLED/TURNING_OFF: hentikan scan yang sedang berjalan. Tanpa ini, OS
+     *   berhenti mengirim hasil scan tetapi UI tetap menampilkan daftar perangkat
+     *   terakhir beserta RSSI basi, sehingga terlihat seperti aplikasi hang.
+     * - ENABLED: lanjutkan scan otomatis kalau sebelumnya sengaja dihentikan karena
+     *   Bluetooth dimatikan.
+     */
+    fun onBluetoothStateChanged(status: BluetoothStatus) {
+        _bluetoothStatus.value = status
+
+        when (status) {
+            BluetoothStatus.DISABLED, BluetoothStatus.TURNING_OFF -> {
+                if (_isScanning.value) {
+                    resumeScanWhenBluetoothReenabled = true
+                    bleScannerRepo.stopScan()
+                    _isScanning.value = false
+                }
+            }
+
+            BluetoothStatus.ENABLED -> {
+                if (resumeScanWhenBluetoothReenabled) {
+                    resumeScanWhenBluetoothReenabled = false
+                    // Pakai startScan() biasa supaya prasyarat dicek ulang.
+                    val result = bleScannerRepo.startScan()
+                    _isScanning.value = result == ScanLaunchResult.Started
+                }
+            }
+
+            // TURNING_ON belum siap dipakai. Menyalakan scan di sini akan gagal
+            // dengan pesan "Bluetooth nonaktif" padahal user sedang menyalakannya.
+            BluetoothStatus.TURNING_ON -> Unit
+        }
     }
 
     fun setSearchQuery(query: String) {

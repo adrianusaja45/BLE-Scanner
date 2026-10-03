@@ -1,6 +1,10 @@
 package com.example.blescanner.ui
 
+import android.bluetooth.BluetoothAdapter
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -9,9 +13,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.blescanner.R
+import com.example.blescanner.model.BluetoothStatus
 import com.example.blescanner.ui.history.HistoryFragment
 import com.example.blescanner.ui.scanner.ScannerFragment
 import com.example.blescanner.ui.scanner.ScannerViewModel
@@ -47,6 +53,33 @@ class MainActivity : AppCompatActivity() {
      * supaya tidak muncul Toast di setiap kali aplikasi naik ke foreground.
      */
     private var awaitingSettingsReturn = false
+
+    /**
+     * Receiver status Bluetooth, didaftarkan hanya selama aplikasi terlihat.
+     *
+     * Daftarkan di onStart/onStop (bukan di constructor atau onCreate) supaya
+     * receiver tidak tetap hidup saat aplikasi di background - pada kondisi itu
+     * broadcast sudah dihentikan oleh sistem, dan kita sudah menghentikan scan.
+     */
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+
+            val status = when (intent.getIntExtra(
+                BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR
+            )) {
+                BluetoothAdapter.STATE_ON -> BluetoothStatus.ENABLED
+                BluetoothAdapter.STATE_OFF -> BluetoothStatus.DISABLED
+                BluetoothAdapter.STATE_TURNING_ON -> BluetoothStatus.TURNING_ON
+                BluetoothAdapter.STATE_TURNING_OFF -> BluetoothStatus.TURNING_OFF
+                else -> return
+            }
+
+            viewModel.onBluetoothStateChanged(status)
+        }
+    }
+
+    private var isReceiverRegistered = false
 
     //Permission Request
     private val permissionLauncher =
@@ -120,6 +153,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+
+        // Pantau status Bluetooth selama aplikasi terlihat.
+        // ContextCompat.registerReceiver sudah menangani perbedaan API: sejak
+        // Android 13 (TIRAMISU) flag eksportir WAJIB diisi, dan lewat ContextCompat
+        // kita tidak perlu menulis cabang if/else sendiri.
+        ContextCompat.registerReceiver(
+            this,
+            bluetoothReceiver,
+            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        isReceiverRegistered = true
+
         // Lanjutkan scan yang tertahan saat aplikasi masuk background.
         // by viewModels() pada Activity memakai ViewModelStore activity yang sama
         // dengan activityViewModels() di Fragment, jadi ini instance yang sama.
@@ -141,6 +187,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+
+        // Lepas receiver DULU, sebelum pengecekan rotasi. Kalau capas ini setelah
+        // return, activity lama akan meninggalkan receiver yang menggantung setiap
+        // kali perangkat diputar.
+        if (isReceiverRegistered) {
+            unregisterReceiver(bluetoothReceiver)
+            isReceiverRegistered = false
+        }
 
         // Rotasi, ganti tema, dan ganti bahasa juga memicu onStop(), tapi activity
         // sedang direkonstruksi - bukan benar-benar background. Kalau scan dihentikan

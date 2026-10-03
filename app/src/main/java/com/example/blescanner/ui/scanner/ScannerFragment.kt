@@ -17,9 +17,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.blescanner.R
 import com.example.blescanner.data.ScanLaunchResult
 import com.example.blescanner.databinding.FragmentScannerBinding
+import com.example.blescanner.model.BluetoothStatus
 import com.example.blescanner.ui.radar.RadarFragment
 import com.example.blescanner.util.BlePermissions
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -169,32 +171,47 @@ class ScannerFragment : Fragment() {
             // Jika aplikasi disembunyikan ke background, pemantauan otomatis jeda agar hemat baterai
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 
-                //Pantau status scanning
+                // Ketiga status ini dulu ditulis dari tiga collector terpisah yang
+                // saling menimpa tvStatus, jadi hasilnya tidak bisa diprediksi.
+                // Sekarang digabung jadi satu sumber teks.
                 launch {
-                    viewModel.isScanning.collect { isScanning ->
-                        if (isScanning) {
-                            binding.btnStartStop.text = "Stop Scan"
-                        } else {
-                            binding.btnStartStop.text = "Mulai Scan"
-                            binding.tvStatus.text = "Scan Dihentikan"
+                    combine(
+                        viewModel.isScanning,
+                        viewModel.bluetoothStatus,
+                        viewModel.scannedDevice
+                    ) { scanning, bluetooth, devices ->
+                        Triple(scanning, bluetooth, devices)
+                    }.collect { (scanning, bluetooth, devices) ->
+                        binding.btnStartStop.text = getString(
+                            if (scanning) R.string.stop_scan else R.string.mulai_scan
+                        )
+
+                        // Urutan dari paling penting: kalau Bluetooth mati, user
+                        // harus tahu itu dulu - bukan melihat jumlah perangkat
+                        // terakhir yang sekarang sudah basi.
+                        binding.tvStatus.text = when (bluetooth) {
+                            BluetoothStatus.DISABLED,
+                            BluetoothStatus.TURNING_OFF ->
+                                getString(R.string.bt_mati_scan_berhenti)
+
+                            BluetoothStatus.TURNING_ON ->
+                                getString(R.string.bt_menyala)
+
+                            BluetoothStatus.ENABLED -> if (scanning) {
+                                getString(R.string.jumlah_perangkat, devices.size)
+                            } else {
+                                getString(R.string.scan_dihentikan)
+                            }
                         }
-                    }
-                }
 
-                //Pantau daftar device
-                // Pantau StateFlow 'scannedDevices' dari ViewModel
-                viewModel.scannedDevice.collect { devices ->
-                    // Setiap kali ada perangkat baru, blok ini akan otomatis tereksekusi
-                    // Untuk sementara, kita ubah teks di layar sesuai jumlah perangkat
-                    binding.tvStatus.text = "Menemukan ${devices.size} perangkat"
+                        //Kirim Data ke Adapter
+                        devicesAdapter.submitList(devices)
 
-                    //Kirim Data ke Adapter
-                    devicesAdapter.submitList(devices)
-
-                    // Cetak perangkat terkuat ke Logcat (jika daftar tidak kosong)
-                    if (devices.isNotEmpty()) {
-                        val topDevice = devices.first()
-                        Log.d("BleScanner", "Terkuat: ${topDevice.name} | ${topDevice.rssi} dBm")
+                        // Cetak perangkat terkuat ke Logcat (jika daftar tidak kosong)
+                        if (devices.isNotEmpty()) {
+                            val topDevice = devices.first()
+                            Log.d("BleScanner", "Terkuat: ${topDevice.name} | ${topDevice.rssi} dBm")
+                        }
                     }
                 }
             }

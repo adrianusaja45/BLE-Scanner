@@ -110,6 +110,14 @@ class BleScannerRepo @Inject constructor(
     }
 
     /**
+     * Kondisi adapter saat ini.
+     *
+     * Dipakai untuk inisialisasi status Bluetooth di ViewModel supaya UI tidak
+     * sempat menampilkan "aktif" padahal adapter sedang nonaktif.
+     */
+    fun isBluetoothEnabled(): Boolean = bluetoothAdapter?.isEnabled == true
+
+    /**
      * Memulai pemindaian hanya kalau semua prasyaratnya terpenuhi.
      *
      * startScan() melempar IllegalStateException saat adapter nonaktif dan

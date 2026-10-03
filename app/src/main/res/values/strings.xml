@@ -36,4 +36,11 @@
     <string name="buka_pengaturan">Buka Pengaturan</string>
     <string name="nanti">Nanti</string>
 
+    <!-- Status Bluetooth (branch feat/bluetooth-state-receiver) -->
+    <string name="stop_scan">Stop Scan</string>
+    <string name="scan_dihentikan">Scan Dihentikan</string>
+    <string name="jumlah_perangkat">Menemukan %1$d perangkat</string>
+    <string name="bt_mati_scan_berhenti">Bluetooth nonaktif. Scan dihentikan.</string>
+    <string name="bt_menyala">Menyalakan Bluetooth ..</string>
+
 </resources>
