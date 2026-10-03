@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -19,9 +20,17 @@ class ScannerViewModel @Inject constructor(
 ) : ViewModel() {
     //Pantau Flow dari Repo, urutkan, lalu ubah lagi ke state flow untuk UI
 
+
     //Penampung Input dari UI Search
     private val _searchQuery = MutableStateFlow("")
     private val _minRssiFilter = MutableStateFlow(-100) // Default: tampilkan semua (hingga -100 dBm)
+
+    // State untuk menyimpan MAC Address target yang dipilih di layar Radar
+    private val _targetMacAddress = MutableStateFlow<String?>(null)
+    //menyimpan status scanning
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
     // Menggabungkan 3 aliran data secara reaktif
     val scannedDevice: StateFlow<List<ScannedDevice>> = combine(
         bleScannerRepo.scannedDevices,
@@ -42,12 +51,26 @@ class ScannerViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    //Aliran data khusus untuk 1 target device
+    val targetDevice: StateFlow<ScannedDevice?> = combine(
+        scannedDevice,
+        _targetMacAddress
+    ) { devices, targetMac ->
+        devices.find { it.mac == targetMac }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
     fun startScan() {
         bleScannerRepo.startScan()
+        _isScanning.value = true
     }
 
     fun stopScan() {
         bleScannerRepo.stopScan()
+        _isScanning.value = false
     }
 
     fun setSearchQuery(query: String) {
@@ -56,5 +79,15 @@ class ScannerViewModel @Inject constructor(
 
     fun setMinRssiFilter(minRssi: Int) {
         _minRssiFilter.value = minRssi
+    }
+
+    // Fungsi untuk dipanggil oleh RadarFragment saat pertama kali dibuka
+    fun setTrackingTarget(macAddress: String) {
+        _targetMacAddress.value = macAddress
+    }
+
+    // Fungsi untuk menghapus target tracking (misal saat RadarFragment ditutup)
+    fun clearTrackingTarget() {
+        _targetMacAddress.value = null
     }
 }

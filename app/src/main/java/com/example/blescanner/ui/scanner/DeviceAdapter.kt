@@ -9,7 +9,7 @@ import com.example.blescanner.databinding.ItemDevicesBinding
 import com.example.blescanner.model.ScannedDevice
 
 
-class DeviceAdapter : ListAdapter<ScannedDevice, DeviceAdapter.DeviceViewHolder>(DeviceDiffCallback()) {
+class DeviceAdapter (private val onDeviceClick: (ScannedDevice) -> Unit) : ListAdapter<ScannedDevice, DeviceAdapter.DeviceViewHolder>(DeviceDiffCallback()) {
 
     // 1. ViewHolder: Wadah untuk menampung referensi komponen UI di item_device.xml
     inner class DeviceViewHolder(private val binding: ItemDevicesBinding) : RecyclerView.ViewHolder(binding.root) {
@@ -28,6 +28,10 @@ class DeviceAdapter : ListAdapter<ScannedDevice, DeviceAdapter.DeviceViewHolder>
                 else -> "Di luar jangkauan (Lost)"
             }
             binding.tvDistance.text = distanceEstimation
+
+            binding.root.setOnClickListener() {
+                onDeviceClick(device)
+            }
         }
     }
     // 2. Membuat kotak kartu baru saat dibutuhkan oleh RecyclerView

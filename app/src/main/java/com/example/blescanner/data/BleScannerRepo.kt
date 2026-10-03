@@ -12,7 +12,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
+import javax.inject.Singleton
 
+//WAJIB @Singleton: Repo ini menyimpan sesi scan dan data perangkat.
+//Tanpa scope, Hilt membuat instance baru per Fragment sehingga
+//halaman Radar membaca repo yang berbeda (kosong) dari halaman Scanner.
+@Singleton
 class BleScannerRepo @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {

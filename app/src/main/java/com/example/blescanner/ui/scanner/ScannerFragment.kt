@@ -8,12 +8,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.blescanner.R
 import com.example.blescanner.databinding.FragmentScannerBinding
+import com.example.blescanner.ui.radar.RadarFragment
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -23,11 +25,10 @@ class ScannerFragment : Fragment() {
     private var _binding: FragmentScannerBinding? = null
     private val binding get() = _binding!!
 
-    //Hilt otomatis mencarikaan dan menyuntikkan ScannerViewModel ke sini
-    private val viewModel: ScannerViewModel by viewModels()
+    //WAJIB activityViewModels(): RadarFragment juga memakai ViewModel ini agar
+//state scan / search / filter / target tetap sama di kedua halaman.
+    private val viewModel: ScannerViewModel by activityViewModels()
     private lateinit var devicesAdapter: DeviceAdapter
-
-    private var isScanning = false
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -71,18 +72,16 @@ class ScannerFragment : Fragment() {
 
         // 3. Mulai/Stop pemindaian BLE
         binding.btnStartStop.setOnClickListener {
-            if (isScanning) {
+            if (viewModel.isScanning.value) {
                 //Jika sedang scan, hentikan
                 viewModel.stopScan()
-                binding.btnStartStop.text = "Start Scan"
+                binding.btnStartStop.text = "Mulai Scan"
                 binding.tvStatus.text = "Scan Dihentikan"
-                isScanning = false
             } else {
                 // Jika sedang berhenti, jalankan scan
                 viewModel.startScan()
                 binding.btnStartStop.text = "Stop Scan"
                 binding.tvStatus.text = "Memindai Perangkat .."
-                isScanning = true
             }
         }
 
@@ -95,12 +94,32 @@ class ScannerFragment : Fragment() {
     }
 
     private fun setupRecyclerView() {
-        devicesAdapter = DeviceAdapter()
+        // ACTION klik Setup diconfigure SEKALI di awal, bukan di dalam lambda klik
+        devicesAdapter = DeviceAdapter { selectedDevice ->
+            navigateToRadarScreen(selectedDevice.mac)
+        }
+
         binding.rvDevices.apply {
-            adapter = devicesAdapter
             layoutManager = LinearLayoutManager(requireContext())
+            adapter = devicesAdapter
+            setHasFixedSize(true)
         }
     }
+
+    private fun navigateToRadarScreen(macAddress: String) {
+        val radarFragment = RadarFragment().apply {
+            arguments = Bundle().apply {
+                putString("MAC_ADDRESS", macAddress)
+            }
+        }
+
+        //Pindah Fragment dan tambahkan Backstack agar bisa kembali ke Fragment sebelumnya
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, radarFragment)
+            .addToBackStack(null)
+            .commit()
+    }
+
 
     //untuk mengobservasi LiveData dari ViewModel
     private fun observeViewModel() {
@@ -110,6 +129,20 @@ class ScannerFragment : Fragment() {
             //Pemantauan hanya aktif saat layar sedang tampil (STARTED)
             // Jika aplikasi disembunyikan ke background, pemantauan otomatis jeda agar hemat baterai
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+
+                //Pantau status scanning
+                launch {
+                    viewModel.isScanning.collect { isScanning ->
+                        if (isScanning) {
+                            binding.btnStartStop.text = "Stop Scan"
+                        } else {
+                            binding.btnStartStop.text = "Mulai Scan"
+                            binding.tvStatus.text = "Scan Dihentikan"
+                        }
+                    }
+                }
+
+                //Pantau daftar device
                 // Pantau StateFlow 'scannedDevices' dari ViewModel
                 viewModel.scannedDevice.collect { devices ->
                     // Setiap kali ada perangkat baru, blok ini akan otomatis tereksekusi
