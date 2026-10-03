@@ -9,11 +9,11 @@ import android.content.Context
 import android.util.Log
 import com.example.blescanner.data.local.DeviceDao
 import com.example.blescanner.data.local.DeviceEntity
+import com.example.blescanner.di.ApplicationScope
 import com.example.blescanner.model.ScannedDevice
 import com.example.blescanner.util.BlePermissions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +27,8 @@ import javax.inject.Singleton
 @Singleton
 class BleScannerRepo @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val deviceDao: DeviceDao
+    private val deviceDao: DeviceDao,
+    @param:ApplicationScope private val applicationScope: CoroutineScope
 ) {
     private companion object {
         const val TAG = "BleScannerRepo"
@@ -92,8 +93,11 @@ class BleScannerRepo @Inject constructor(
                 timeStamp = System.currentTimeMillis() // Ambil waktu saat ini (dalam milidetik)
             )
 
-            //2. Kirim ke database melalui background thread (Dispatchers.IO)
-            CoroutineScope(Dispatchers.IO).launch{
+            //2. Kirim ke database lewat scope milik aplikasi, bukan scope baru.
+            // Callback ini bisa dipanggil ratusan kali per detik, jadi membuat
+            // CoroutineScope di sini akan menghasilkan ratusan scope yang tidak
+            // pernah di-cancel dan tidak punya Job parent.
+            applicationScope.launch {
                 deviceDao.insertDevice(entity)
             }
         }
