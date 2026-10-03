@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -14,8 +15,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.blescanner.R
+import com.example.blescanner.data.ScanLaunchResult
 import com.example.blescanner.databinding.FragmentScannerBinding
 import com.example.blescanner.ui.radar.RadarFragment
+import com.example.blescanner.util.BlePermissions
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -75,16 +78,52 @@ class ScannerFragment : Fragment() {
             if (viewModel.isScanning.value) {
                 //Jika sedang scan, hentikan
                 viewModel.stopScan()
-                binding.btnStartStop.text = "Mulai Scan"
-                binding.tvStatus.text = "Scan Dihentikan"
             } else {
-                // Jika sedang berhenti, jalankan scan
-                viewModel.startScan()
-                binding.btnStartStop.text = "Stop Scan"
-                binding.tvStatus.text = "Memindai Perangkat .."
+                // startScan() mengembalikan alasan kalau gagal, jadi UI bisa
+                // menjelaskan masalahnya alih-alih aplikasi crash.
+                val result = viewModel.startScan()
+                when (result) {
+                    is ScanLaunchResult.Started -> {
+                        binding.tvStatus.text = getString(R.string.memindai_perangkat)
+                    }
+                    else -> {
+                        val message = result.toUserMessage()
+                        binding.tvStatus.text = message
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         }
 
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Izin bisa saja berubah setelah user keluar ke Pengaturan lalu kembali,
+        // jadi tombol dievaluasi ulang setiap kali halaman ini terlihat.
+        updateScanAvailability()
+    }
+
+    /**
+     * Nonaktifkan tombol scan kalau prasyarat belum terpenuhi, supaya user
+     * mendapat penjelasan sebelum menekan, bukan crash atau diam-diam gagal.
+     */
+    private fun updateScanAvailability() {
+        val hasPermission = BlePermissions.isGranted(requireContext())
+        binding.btnStartStop.isEnabled = hasPermission
+
+        if (!hasPermission && !viewModel.isScanning.value) {
+            binding.tvStatus.text = getString(R.string.izin_bt_belum_diberikan)
+        }
+    }
+
+    private fun ScanLaunchResult.toUserMessage(): String = when (this) {
+        is ScanLaunchResult.Started -> getString(R.string.memindai_perangkat)
+        is ScanLaunchResult.BluetoothUnavailable -> getString(R.string.bt_tidak_tersedia)
+        is ScanLaunchResult.BluetoothDisabled -> getString(R.string.bluetooth_nonaktif)
+        is ScanLaunchResult.PermissionDenied -> getString(R.string.izin_bt_dibutuhkan)
+        is ScanLaunchResult.LocationServiceDisabled -> getString(R.string.lokasi_nonaktif)
+        is ScanLaunchResult.Failed -> getString(R.string.gagal_memulai_scan, reason)
     }
 
     override fun onDestroyView() {

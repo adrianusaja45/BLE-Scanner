@@ -3,6 +3,7 @@ package com.example.blescanner.ui.scanner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.blescanner.data.BleScannerRepo
+import com.example.blescanner.data.ScanLaunchResult
 import com.example.blescanner.model.ScannedDevice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,9 +64,12 @@ class ScannerViewModel @Inject constructor(
         initialValue = null
     )
 
-    fun startScan() {
-        bleScannerRepo.startScan()
-        _isScanning.value = true
+    fun startScan(): ScanLaunchResult {
+        val result = bleScannerRepo.startScan()
+        // Hanya tandai aktif kalau repo benar-benar berhasil memulai.
+        // Kalau tidak, tombol akan menampilkan "Stop Scan" padahal tidak ada scan.
+        _isScanning.value = result == ScanLaunchResult.Started
+        return result
     }
 
     fun stopScan() {

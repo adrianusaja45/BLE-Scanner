@@ -6,9 +6,11 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.util.Log
 import com.example.blescanner.data.local.DeviceDao
 import com.example.blescanner.data.local.DeviceEntity
 import com.example.blescanner.model.ScannedDevice
+import com.example.blescanner.util.BlePermissions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +29,10 @@ class BleScannerRepo @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val deviceDao: DeviceDao
 ) {
+    private companion object {
+        const val TAG = "BleScannerRepo"
+    }
+
     //wadah sementara data di map agar mudah menemukan dan memperbarui data berdasarkan MAC Address
     private val scannedDevicesMap = mutableMapOf<String, ScannedDevice>()
 
@@ -36,11 +42,18 @@ class BleScannerRepo @Inject constructor(
     //pipa aliran data (Flow) eksternal yang hanya bisa dibaca yang dipantau oleh ViewModel
     val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevicesFlow.asStateFlow()
 
-    //mengambil layanan bluetooth sistem android
-    private val bluetoothManager =
-        context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-    private val bluetoothAdapter = bluetoothManager.adapter
-    private val bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
+    // Sengaja nullable: perangkat tanpa hardware bluetooth akan mengembalikan null di sini.
+    private val bluetoothManager: BluetoothManager? =
+        context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+
+    /**
+     * Adapter di-resolve ulang setiap akses, BUKAN disimpan sebagai val di constructor.
+     * Alasannya: butuh disimpan null-safety (getAdapter() bisa null), dan objek adapter
+     * bisa berganti setelah pengguna mematikan/menyalakan bluetooth.
+     */
+    private val bluetoothAdapter get() = bluetoothManager?.adapter
+
+    private var isScanning = false
 
     private val scanCallback = object : ScanCallback() {
         @SuppressLint("MissingPermission")
@@ -48,7 +61,16 @@ class BleScannerRepo @Inject constructor(
             // Proses hasil scan di sini
             super.onScanResult(callbackType, result)
 
-            val device = result.device.name ?: "Unknown Device"
+            // BluetoothDevice.getName() membutuhkan BLUETOOTH_CONNECT di API 31+.
+            // Izin bisa saja ditolak atau dicabut saat aplikasi berjalan, jadi
+            // SecurityException tidak boleh lolos keluar dari dalam callback.
+            val device = try {
+                result.device.name ?: "Unknown Device"
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Nama perangkat tidak terbaca, BLUETOOTH_CONNECT dicabut?", e)
+                "Unknown Device"
+            }
+
             val macAddress = result.device.address
             val rssi = result.rssi
 
@@ -75,23 +97,89 @@ class BleScannerRepo @Inject constructor(
                 deviceDao.insertDevice(entity)
             }
         }
+
+        override fun onScanFailed(errorCode: Int) {
+            super.onScanFailed(errorCode)
+            // Catatan: callback ini jalan di thread binder, bukan main thread,
+            // jadi jangan menyentuh UI langsung dari sini.
+            // Penyampaian kegagalan ke UI sengaja ditunda ke branch berikutnya,
+            // karena butuh StateFlow status yang baru.
+            Log.e(TAG, "Scan gagal dimulai, errorCode=$errorCode")
+            isScanning = false
+        }
     }
 
-    fun startScan() {
+    /**
+     * Memulai pemindaian hanya kalau semua prasyaratnya terpenuhi.
+     *
+     * startScan() melempar IllegalStateException saat adapter nonaktif dan
+     * SecurityException saat izin kurang - keduanya akan menutup aplikasi kalau
+     * tidak diceg lebih dulu. Karena itu prasyarat dicek eksplisit dan hasilnya
+     * dikembalikan ke UI sebagai penjelasan.
+     */
+    // ReturnCount dilewati secara sengaja: pola guard clause di sini justru
+    // yang membuat urutan pemeriksaan prasyarat terbaca jelas. Menyatukannya
+    // jadi satu blok if/else hanya membuat kode ini lebih sulit dibaca.
+    @Suppress("ReturnCount")
+    fun startScan(): ScanLaunchResult {
+        val adapter = bluetoothAdapter
+        val scanner = adapter?.bluetoothLeScanner
+        if (adapter == null || scanner == null) {
+            Log.w(TAG, "Adapter Bluetooth tidak tersedia di perangkat ini")
+            return ScanLaunchResult.BluetoothUnavailable
+        }
+
+        if (!BlePermissions.isGranted(context)) {
+            Log.w(TAG, "Izin Bluetooth belum diberikan, scan dibatalkan")
+            return ScanLaunchResult.PermissionDenied
+        }
+
+        if (!adapter.isEnabled) {
+            Log.w(TAG, "Bluetooth sedang nonaktif, scan dibatalkan")
+            return ScanLaunchResult.BluetoothDisabled
+        }
+
+        if (!BlePermissions.isLocationServiceEnabled(context)) {
+            Log.w(TAG, "Layanan lokasi nonaktif, hasil scan akan kosong")
+            return ScanLaunchResult.LocationServiceDisabled
+        }
+
         //konfigurasi agar responsif
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-
-        bluetoothLeScanner?.startScan(null, settings, scanCallback)
-
+        return try {
+            scanner.startScan(null, settings, scanCallback)
+            isScanning = true
+            Log.d(TAG, "Scan dimulai")
+            ScanLaunchResult.Started
+        } catch (e: IllegalStateException) {
+            // Jaring pengaman: prasyarat di atas sudah dicek, tapi kondisi bisa
+            // berubah antara pemeriksaan dan pemanggilan.
+            Log.e(TAG, "Gagal memulai scan: adapter tidak aktif", e)
+            isScanning = false
+            ScanLaunchResult.Failed(e.message ?: "Bluetooth tidak aktif")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Gagal memulai scan: izin kurang", e)
+            isScanning = false
+            ScanLaunchResult.Failed(e.message ?: "Izin ditolak")
+        }
     }
 
-    @SuppressLint("MissingPermission")
     fun stopScan() {
-        //berhenti scan
-        bluetoothLeScanner?.stopScan(scanCallback)
+        if (!isScanning) return
+
+        try {
+            bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
+            Log.d(TAG, "Scan dihentikan")
+        } catch (e: IllegalStateException) {
+            // Adapter dimatikan saat scan berjalan, jadi tidak ada apa pun untuk dihentikan.
+            Log.w(TAG, "stopScan dilewati karena adapter tidak aktif", e)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "stopScan gagal: izin kurang", e)
+        } finally {
+            isScanning = false
+        }
     }
 }
-
