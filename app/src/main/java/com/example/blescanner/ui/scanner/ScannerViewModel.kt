@@ -122,11 +122,32 @@ class ScannerViewModel @Inject constructor(
      * supaya tidak mencoba lagi di setiap kali foreground berikutnya.
      */
     fun onAppForegrounded(): ScanLaunchResult? {
+        // Segarkan status Bluetooth dari kondisi sebenarnya. Selama aplikasi di
+        // background receiver dilepas, jadi perubahan status yang terjadi di luar
+        // aplikasi tidak pernah sampai ke sini dan _bluetoothStatus bisa basi.
+        // Tanpa refresh ini, Bluetooth yang dimatikan dari quick settings akan
+        // tetap terbaca ENABLED dan UI menampilkan "Scan Dihentikan" - menyesatkan,
+        // karena penyebab sebenarnya adalah Bluetooth mati.
+        _bluetoothStatus.value = if (bleScannerRepo.isBluetoothEnabled()) {
+            BluetoothStatus.ENABLED
+        } else {
+            BluetoothStatus.DISABLED
+        }
+
         if (!resumeScanWhenForegrounded) return null
 
         resumeScanWhenForegrounded = false
         val result = bleScannerRepo.startScan()
         _isScanning.value = result == ScanLaunchResult.Started
+
+        // Gagal hanya karena Bluetooth mati: simpan niat supaya scan otomatis
+        // dilanjutkan begitu user menyalakan Bluetooth lagi. Untuk kegagalan
+        // lain (izin kurang, lokasi mati) niatnya tidak disimpan, karena
+        // menyalakan Bluetooth tidak akan menyelesaikannya.
+        if (result == ScanLaunchResult.BluetoothDisabled) {
+            resumeScanWhenBluetoothReenabled = true
+        }
+
         return result
     }
 
