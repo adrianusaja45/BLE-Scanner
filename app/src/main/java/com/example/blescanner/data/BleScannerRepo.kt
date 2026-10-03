@@ -6,11 +6,16 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import com.example.blescanner.data.local.DeviceDao
+import com.example.blescanner.data.local.DeviceEntity
 import com.example.blescanner.model.ScannedDevice
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,7 +24,8 @@ import javax.inject.Singleton
 //halaman Radar membaca repo yang berbeda (kosong) dari halaman Scanner.
 @Singleton
 class BleScannerRepo @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    private val deviceDao: DeviceDao
 ) {
     //wadah sementara data di map agar mudah menemukan dan memperbarui data berdasarkan MAC Address
     private val scannedDevicesMap = mutableMapOf<String, ScannedDevice>()
@@ -56,6 +62,18 @@ class BleScannerRepo @Inject constructor(
 
             //perbarui aliran data
             _scannedDevicesFlow.value = scannedDevicesMap.values.toList()
+
+            //1. Bungkus data yang didapat kedalam bentuk tabel (DeviceEntity)
+            val entity = DeviceEntity(
+                macAddress = macAddress,
+                deviceName = device, // Variabel 'device' ini berisi nama atau "Unknown Device"
+                timeStamp = System.currentTimeMillis() // Ambil waktu saat ini (dalam milidetik)
+            )
+
+            //2. Kirim ke database melalui background thread (Dispatchers.IO)
+            CoroutineScope(Dispatchers.IO).launch{
+                deviceDao.insertDevice(entity)
+            }
         }
     }
 
