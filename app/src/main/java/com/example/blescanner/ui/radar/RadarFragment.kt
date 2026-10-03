@@ -54,6 +54,12 @@ class RadarFragment : Fragment() {
                     if (device != null) {
                         binding.radarView.updateDevices(listOf(device))
                         binding.tvRadarStatus.visibility = View.GONE
+                        binding.infoContainer.visibility = View.VISIBLE
+
+                        binding.tvDeviceName.text = device.name.ifBlank { "Unknown Device" }
+                        binding.tvMacAddress.text = device.mac
+                        binding.tvRssiValue.text = "RSSI: ${device.rssi} dBm"
+
                     } else {
                         // Kosongkan radar. Gunakan TextView, bukan Toast,
                         // karena Toast memunculkan ulang tiap sinyal sempat putus 1 siklus scan.

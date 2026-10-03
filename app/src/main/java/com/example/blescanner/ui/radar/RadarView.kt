@@ -7,6 +7,9 @@ import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
 import com.example.blescanner.model.ScannedDevice
+import com.example.blescanner.utils.RssiConverter
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
 
 class RadarView @JvmOverloads constructor(
@@ -77,12 +80,18 @@ class RadarView @JvmOverloads constructor(
             if (normalizedRssi < 0f) normalizedRssi = 0f
             if (normalizedRssi > 1f) normalizedRssi = 1f
 
+            // INVERSI JARAK: Sinyal kuat (1.0) -> jarak 0. Sinyal lemah (0.0) -> jarak maxRadius
+            val distanceRadius = maxRadius * (1f - normalizedRssi)
+
             // Hitung kordinat X dan Y menggunakan Trigonometri
-            val x = centerX + normalizedRssi * maxRadius * Math.cos(angle).toFloat()
-            val y = centerY + normalizedRssi * maxRadius * Math.sin(angle).toFloat()
+            val x = centerX + distanceRadius * cos(angle).toFloat()
+            val y = centerY + distanceRadius * sin(angle).toFloat()
+
+            //ambil warna dinamis dari helper berdasarkan nilai RSSI
+            dotPaint.color = RssiConverter.getSignalColor(device.rssi)
 
         // Gambar titik perangkat
-            canvas.drawCircle(x, y, 10f, dotPaint)
+            canvas.drawCircle(x, y, 15f, dotPaint)
 
             //Tulis nama perangkat/MAC di sekitar titik
             val displayNAme =device.name.ifBlank { "Unknown" }

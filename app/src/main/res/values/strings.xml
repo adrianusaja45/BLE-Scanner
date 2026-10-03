@@ -4,4 +4,16 @@
     <string name="mesin_nyala">Mesin nyala</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="sinyal_hilang_lost">Sinyal Hilang (Lost)</string>
+    <string name="memindai_perangkat">Memindai Perangkat ..</string>
+    <string name="cari_nama_mac_address">Cari nama / Mac Address</string>
+    <string name="batas_minimum_rssi_100_dbm">Batas Minimum RSSI: -100 dBm</string>
+    <string name="mulai_scan">Mulai Scan</string>
+    <string name="nama_perangkat">Nama Perangkat</string>
+    <string name="macAdd">00:00:00:00:00:00</string>
+    <string name="dBm">-50 dBm</string>
+    <string name="strength">1.5 m (Sangat Kuat)</string>
+
+    <string name = "distance_format_with_category">%1$s (%2$s)</string>
+
 </resources>
