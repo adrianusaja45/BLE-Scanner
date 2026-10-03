@@ -1,10 +1,12 @@
 package com.example.blescanner.util
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 object BlePermissions {
@@ -31,6 +33,34 @@ object BlePermissions {
     fun isGranted(context: Context): Boolean = required.all { permission ->
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     }
+
+    /**
+     * Nilai true berarti sistem MASIH akan menampilkan dialog permintaan izin kalau
+     * launch() dipanggil lagi.
+     *
+     * Nilai false ambigu: bisa berarti "belum pernah diminta" (masih boleh diminta),
+     * atau "sudah ditolak permanen / Jangan tanya lagi" (sudah tidak akan muncul lagi).
+     * Karena itu hasil FALSE tidak boleh langsung disimpulkan sebagai penolakan
+     * permanen sebelum kita tahu izin pernah diminta minimal satu kali.
+     *
+     * Android 11 (API 30) ke atas: begitu user menolak izin yang sama dua kali,
+     * sistem berhenti menampilkannya tanpa memberi callback error.
+     */
+    fun shouldShowRationale(activity: Activity): Boolean =
+        required.any { permission ->
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+        }
+
+    /**
+     * True kalau izin sudah ditolak permanen sehingga permintaan ulang tidak akan
+     * menampilkan dialog apa pun.
+     *
+     * Hanya valid bila pemanggil sudah tahu izin pernah diminta. Tanpa itu, nilai
+     * false dari shouldShowRationale akan disalahartikan sebagai penolakan permanen
+     * padahal user mungkin belum pernah ditanya sama sekali.
+     */
+    fun isPermanentlyDenied(activity: Activity): Boolean =
+        !isGranted(activity) && !shouldShowRationale(activity)
 
     /**
      * Di Android 11 ke bawah, izin lokasi yang sudah diberikan belum cukup: pengguna

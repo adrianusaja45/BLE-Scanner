@@ -28,4 +28,12 @@
     <string name="lokasi_nonaktif">Layanan lokasi nonaktif. Nyalakan untuk memindai di Android 11 ke bawah.</string>
     <string name="gagal_memulai_scan">Gagal memulai scan: %1$s</string>
 
+    <!-- Dialog pemulihan izin (branch feat/permission-recovery) -->
+    <string name="izin_ditolak">Izin ditolak. Izin Bluetooth dibutuhkan untuk memindai perangkat.</string>
+    <string name="izin_diberikan">Izin diberikan. Silakan mulai memindai.</string>
+    <string name="izin_permanen_ditolak_judul">Izin ditolak permanen</string>
+    <string name="izin_permanen_ditolak_pesan">Sistem tidak akan menampilkan permintaan izin lagi. Buka Pengaturan aplikasi lalu aktifkan izin Bluetooth untuk dapat memindai perangkat.</string>
+    <string name="buka_pengaturan">Buka Pengaturan</string>
+    <string name="nanti">Nanti</string>
+
 </resources>

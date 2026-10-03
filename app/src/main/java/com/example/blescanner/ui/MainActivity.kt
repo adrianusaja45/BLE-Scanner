@@ -1,6 +1,9 @@
 package com.example.blescanner.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +17,7 @@ import com.example.blescanner.ui.scanner.ScannerFragment
 import com.example.blescanner.ui.scanner.ScannerViewModel
 import com.example.blescanner.util.BlePermissions
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -23,21 +27,54 @@ class MainActivity : AppCompatActivity() {
     // activity-scoped. Dipakai untuk menghentikan scan saat aplikasi background.
     private val viewModel: ScannerViewModel by viewModels()
 
+    /**
+     * Pernahkah kita benar-benar menampilkan dialog permintaan izin ke user?
+     *
+     * Dipakai untuk membedakan dua arti dari shouldShowRequestPermissionRationale()
+     * yang sama-sama bernilai false: "belum pernah diminta" (masih boleh launch)
+     * dan "sudah ditolak permanen" (launch tidak akan menampilkan apa pun).
+     * Tanpa penanda ini, user yang baru memasang aplikasi akan diberi dialog
+     * "buka pengaturan" padahal belum pernah menolak apa pun.
+     */
+    private var hasRequestedPermission = false
+
+    /**
+     * Apakah kita sedang menunggu user kembali dari halaman Pengaturan aplikasi?
+     *
+     * Android tidak memberi tahu activity saat user menutup Pengaturan, jadi
+     * pemeriksaan harus dilakukan di onResume(). Penanda ini membatasi pemeriksaan
+     * itu hanya terjadi setelah user benar-benar menekan tombol "Buka Pengaturan",
+     * supaya tidak muncul Toast di setiap kali aplikasi naik ke foreground.
+     */
+    private var awaitingSettingsReturn = false
+
     //Permission Request
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
 
             val allGranted = permissions.entries.all { it.value }
             if (allGranted) {
-                //Do something
-                Toast.makeText(this, "Izin Diberikan, Silahkan Scan BLE", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.izin_diberikan), Toast.LENGTH_SHORT).show()
             } else {
-                //Do something else
-                Toast.makeText(
-                    this,
-                    "Izin Ditolak, Silahkan Mengizinkan Aplikasi Terlebih Dahulu Untuk Melacak BLE",
-                    Toast.LENGTH_SHORT
-                ).show()
+                // Dua kemungkinan yang harus diperlakukan berbeda:
+                // 1. User masih boleh diminta lagi (baru ditolak sekali) - sistem
+                //    akan menampilkan dialog lagi di peluncuran berikutnya.
+                // 2. User sudah menolak dua kali atau menekan "Jangan tanya lagi"
+                //    (Android 11+), sistem TIDAK akan menampilkan dialog lagi.
+                //    Memanggil launch() lagi hanya membuang waktu dan membingungkan,
+                //    jadi di kasus ini kita arahkan ke Pengaturan aplikasi.
+                //
+                // Di dalam callback ini kita pasti sudah pernah meminta, jadi tidak
+                // perlu memeriksa hasRequestedPermission lagi.
+                if (BlePermissions.isPermanentlyDenied(this)) {
+                    showPermanentlyDeniedDialog()
+                } else {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.izin_ditolak),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
 
 
@@ -89,6 +126,19 @@ class MainActivity : AppCompatActivity() {
         viewModel.onAppForegrounded()
     }
 
+    override fun onResume() {
+        super.onResume()
+
+        // User baru saja kembali dari Pengaturan. Periksa sendiri apakah izin sudah
+        // diaktifkan, karena tidak ada callback yang dikirim ke aplikasi.
+        if (awaitingSettingsReturn) {
+            awaitingSettingsReturn = false
+            if (BlePermissions.isGranted(this)) {
+                Toast.makeText(this, getString(R.string.izin_diberikan), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun onStop() {
         super.onStop()
 
@@ -100,18 +150,57 @@ class MainActivity : AppCompatActivity() {
         viewModel.onAppBackgrounded()
     }
 
-
-
     // FUNGSI 1: Hanya bertugas mengecek, tidak melakukan apa-apa selain menjawab True/False
     private fun hasRequiredPermissions(): Boolean = BlePermissions.isGranted(this)
 
     // FUNGSI 2: Bertugas menindaklanjuti hasil dari Fungsi 1
     private fun checkAndRequestPermissions() {
-        if (!hasRequiredPermissions()) {
-            // Daftar izin dibangun di BlePermissions supaya tidak terduplikasi.
-            permissionLauncher.launch(BlePermissions.required.toTypedArray())
+        if (hasRequiredPermissions()) return
+
+        // Kalau user sudah menolak permanen, jangan buang waktu dengan memanggil
+        // launch() karena sistem tidak akan menampilkan dialog apa pun lagi.
+        // Langsung tunjukkan jalan keluar ke Pengaturan.
+        if (hasRequestedPermission && BlePermissions.isPermanentlyDenied(this)) {
+            showPermanentlyDeniedDialog()
+            return
         }
 
+        // Daftar izin dibangun di BlePermissions supaya tidak terduplikasi.
+        hasRequestedPermission = true
+        permissionLauncher.launch(BlePermissions.required.toTypedArray())
+    }
+
+    /**
+     * Menampilkan dialog yang mengarahkan user ke Pengaturan aplikasi.
+     *
+     * Ini satu-satunya jalan keluar ketika Android berhenti menampilkan dialog
+     * permintaan izin (ditolak dua kali atau "Jangan tanya lagi"). Tanpa dialog ini
+     * user akan melihat tombol scan yang terkunci tanpa penjelasan dan tidak tahu
+     * harus ke mana.
+     */
+    private fun showPermanentlyDeniedDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.izin_permanen_ditolak_judul)
+            .setMessage(R.string.izin_permanen_ditolak_pesan)
+            .setPositiveButton(R.string.buka_pengaturan) { _, _ ->
+                awaitingSettingsReturn = true
+                openAppSettings()
+            }
+            .setNegativeButton(R.string.nanti, null)
+            .show()
+    }
+
+    /**
+     * Membuka halaman Pengaturan aplikasi ini. Tidak ada API resmi untuk membuka
+     * langsung ke daftar izin, jadi kita arahkan ke halaman detail aplikasi dan
+     * biarkan user menekan "Izin" sendiri.
+     */
+    private fun openAppSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null)
+        )
+        startActivity(intent)
     }
 
 
